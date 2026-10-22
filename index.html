@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tally</title>
+<meta name="description" content="Suivi personnel des consommations d’alcool">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tally">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#edf0f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1219" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<style>
+/* Layout: single-column phone app, bar-tab ledger feel; category hues carry meaning, ink-blue accent for actions */
+:root{
+  --bg:#edf0f4; --surface:#ffffff; --surface-2:#e2e7ee; --ink:#152030; --muted:#5a6779; --line:#d2d9e2;
+  --accent:#1d4e89; --accent-ink:#ffffff; --accent-soft:#dbe6f4;
+  --beer:#c08410; --wine:#8c1d3a; --sparkling:#a58a1c; --cider:#5b8a26; --neat:#7a5232; --cocktail:#0f7a77;
+  --ok:#2c8a57; --warn:#bf6f00; --bad:#bd3527;
+  --f-display:ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, -apple-system, sans-serif;
+  --f-body:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0d1219; --surface:#161d27; --surface-2:#202935; --ink:#e6ecf3; --muted:#93a0b1; --line:#2b3543;
+  --accent:#86b4ec; --accent-ink:#0b1522; --accent-soft:#1d2d42;
+  --beer:#e3a83c; --wine:#d9587d; --sparkling:#d8c25e; --cider:#8fc356; --neat:#c48d5e; --cocktail:#3fc4be;
+  --ok:#5cc489; --warn:#f0a33a; --bad:#f06b5c; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0d1219; --surface:#161d27; --surface-2:#202935; --ink:#e6ecf3; --muted:#93a0b1; --line:#2b3543;
+  --accent:#86b4ec; --accent-ink:#0b1522; --accent-soft:#1d2d42;
+  --beer:#e3a83c; --wine:#d9587d; --sparkling:#d8c25e; --cider:#8fc356; --neat:#c48d5e; --cocktail:#3fc4be;
+  --ok:#5cc489; --warn:#f0a33a; --bad:#f06b5c; color-scheme:dark }
+
+html,body{height:100%}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.app{max-width:540px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+.eyebrow{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.topbar{display:flex;align-items:baseline;justify-content:space-between}
+.topbar h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.topbar .date{color:var(--muted);font-size:13px}
+
+/* Today panel */
+.panel{background:var(--surface);border-radius:var(--r);padding:16px;border:1px solid var(--line)}
+.today{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.metric .big{font-family:var(--f-display);font-weight:800;font-size:44px;line-height:1;letter-spacing:-.03em}
+.metric .unit{font-size:13px;color:var(--muted);margin-top:4px}
+.bac-status{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;margin-top:8px;background:var(--surface-2)}
+.bac-status i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.s-zero{color:var(--muted)} .s-ok{color:var(--ok)} .s-warn{color:var(--warn)} .s-bad{color:var(--bad)}
+.bac-times{grid-column:1/-1;display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
+.bac-times b{color:var(--ink);font-weight:600}
+.gauge{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.gauge-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.gauge-row b{color:var(--ink)}
+.track{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;position:relative}
+.track>span{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--accent)}
+.track.over>span{background:var(--bad)}
+.disclaimer{font-size:11.5px;color:var(--muted);grid-column:1/-1}
+
+/* Quick add */
+.quick{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-inline:-2px;scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:9px 13px 9px 10px;border-radius:12px;border:1px solid var(--line);background:var(--surface);text-align:left;min-height:52px}
+.chip:active{transform:scale(.97)}
+.chip .t{font-weight:600;font-size:14px;line-height:1.2;white-space:nowrap}
+.chip .s{font-size:12px;color:var(--muted);white-space:nowrap}
+.chip.fav{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.ico svg{width:19px;height:19px}
+.hint{font-size:13px;color:var(--muted)}
+
+.add-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;border:0;border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--f-display);font-weight:700;font-size:18px}
+.add-btn:active{transform:scale(.99)}
+
+.section{display:flex;flex-direction:column;gap:10px}
+.section-h{display:flex;justify-content:space-between;align-items:baseline}
+.section-h h2{font-size:18px;font-weight:700}
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:11px 14px;border:0;background:none;text-align:left;width:100%;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .main{flex:1;min-width:0}
+.row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:12.5px;color:var(--muted)}
+.row .v{font-family:var(--f-display);font-weight:700;font-size:17px;text-align:right}
+.row .v small{display:block;font-family:var(--f-body);font-weight:500;font-size:11.5px;color:var(--muted)}
+.empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:14px;background:var(--surface);border:1px dashed var(--line);border-radius:var(--r)}
+
+/* Tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:6px max(10px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))}
+.tabs-in{max-width:540px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tab{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;font-size:11.5px;font-weight:600;color:var(--muted)}
+.tab svg{width:22px;height:22px}
+.tab[aria-current="page"]{color:var(--accent)}
+
+/* Sheet */
+.sheet{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;justify-content:flex-end}
+.scrim{position:absolute;inset:0;background:rgba(8,12,18,.45)}
+.sheet-panel{position:relative;background:var(--bg);border-radius:20px 20px 0 0;max-height:calc(100% - env(safe-area-inset-top,0px) - 12px);display:flex;flex-direction:column;width:100%;max-width:540px;margin:0 auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(30px);opacity:.6}}
+@media (prefers-reduced-motion:reduce){.sheet-panel{animation:none}}
+.sheet-head{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:10px max(8px,env(safe-area-inset-right,0px)) 6px max(8px,env(safe-area-inset-left,0px))}
+.sheet-head h2{text-align:center;font-size:18px;font-weight:700}
+.icon-btn{width:40px;height:40px;border-radius:12px;border:0;background:transparent;display:grid;place-items:center;color:var(--muted)}
+.icon-btn svg{width:22px;height:22px}
+.sheet-body{overflow-y:auto;padding:6px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+.sheet-foot{padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.sheet-foot:empty{display:none}
+
+.cats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.cat{display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:14px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);text-align:left}
+.cat .ico{width:42px;height:42px;border-radius:12px}
+.cat .ico svg{width:26px;height:26px}
+.cat b{font-family:var(--f-display);font-size:17px;font-weight:700}
+.cat span{font-size:12.5px;color:var(--muted)}
+
+.field{display:flex;flex-direction:column;gap:7px}
+.field>label,.field>.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:11px;padding:10px 14px;font-weight:600;min-width:64px}
+.seg button small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.seg button[aria-pressed="true"] small{color:inherit;opacity:.8}
+.inp{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:11px;padding:11px 12px;font-size:16px;min-width:0}
+.inp-row{display:flex;gap:8px;align-items:center}
+.inp-sfx{position:relative;flex:1;min-width:0}
+.inp-sfx .inp{padding-right:40px}
+.inp-sfx span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
+
+/* ABV wheel */
+.wheel-wrap{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;gap:10px}
+.wheel-box{position:relative;height:200px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);overflow:hidden}
+.wheel{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;-webkit-mask-image:linear-gradient(transparent,#000 35%,#000 65%,transparent);mask-image:linear-gradient(transparent,#000 35%,#000 65%,transparent)}
+.wheel::-webkit-scrollbar{display:none}
+.wheel-pad{height:80px}
+.wheel-item{height:40px;display:grid;place-items:center;scroll-snap-align:center;font-family:var(--f-display);font-size:19px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.wheel-item.on{color:var(--ink);font-weight:800;font-size:24px}
+.wheel-sel{position:absolute;left:10px;right:10px;top:80px;height:40px;border-block:1px solid var(--line);pointer-events:none}
+.step-btn{height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:22px;font-weight:600}
+
+.summary{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.summary .l{font-size:13px;color:var(--muted)}
+.summary .r{font-family:var(--f-display);font-weight:800;font-size:22px;white-space:nowrap}
+.summary .r small{font-family:var(--f-body);font-weight:500;font-size:12.5px;color:var(--muted)}
+.primary{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:16px}
+.primary:disabled{opacity:.45}
+.ghost{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-weight:600}
+.danger{color:var(--bad)}
+.btn-row{display:flex;gap:8px}
+.btn-row>*{flex:1}
+
+.search{position:relative}
+.search .inp{padding-left:38px}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--muted)}
+.mini-btn{border:0;background:var(--surface-2);border-radius:9px;padding:6px 10px;font-size:12.5px;font-weight:600;color:var(--muted)}
+
+/* Builder */
+.ing{display:grid;grid-template-columns:1fr 92px 34px;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+.ing:first-child{border-top:0}
+.ing .n{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ing .n small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.ing .inp{padding:8px 30px 8px 10px;font-size:15px;text-align:right}
+.ing .inp-sfx span{right:9px;font-size:12.5px}
+.comp{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--surface-2)}
+.comp span{height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:1px}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 10px}
+.fact b{display:block;font-family:var(--f-display);font-size:18px;font-weight:700;line-height:1.1}
+.fact span{font-size:11px;color:var(--muted)}
+.pick-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.pick-tabs::-webkit-scrollbar{display:none}
+.pick-tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:7px 12px;font-size:13px;font-weight:600}
+.pick-tabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Calendar */
+.cal-head{display:flex;align-items:center;justify-content:space-between}
+.cal-head h2{font-size:20px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cal .dow{font-size:11px;color:var(--muted);font-weight:600;padding-bottom:4px}
+.day{aspect-ratio:1;max-width:100%;border:0;border-radius:10px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:13px;font-weight:600;position:relative;padding:0}
+.day small{font-size:10.5px;font-weight:600;line-height:1}
+.day.out{color:color-mix(in srgb,var(--muted) 50%,transparent)}
+.day.dry{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.day.l1{background:color-mix(in srgb,var(--warn) 18%,transparent)}
+.day.l2{background:color-mix(in srgb,var(--warn) 38%,transparent)}
+.day.l3{background:color-mix(in srgb,var(--bad) 45%,transparent)}
+.day.today{outline:2px solid var(--accent);outline-offset:-2px}
+.day.sel{box-shadow:inset 0 0 0 2px var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tiles.two{grid-template-columns:repeat(2,1fr)}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.tile b{display:block;font-family:var(--f-display);font-size:26px;font-weight:800;line-height:1.05;letter-spacing:-.02em}
+.tile span{font-size:12px;color:var(--muted)}
+.cal-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+.chart{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-size:10px;font-family:var(--f-body)}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--ink);color:var(--bg);padding:10px 12px 10px 16px;border-radius:12px;display:flex;align-items:center;gap:14px;font-weight:600;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.file-btn{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.file-btn input{position:absolute;inset:0;opacity:0}
+.toast button{border:0;background:transparent;color:var(--bg);font-weight:800;text-decoration:underline;padding:4px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;flex:0 0 auto}
+.dots{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:2px}
+.dot{height:24px;border-radius:7px;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--surface-2);color:var(--muted)}
+.dot.dry{background:color-mix(in srgb,var(--ok) 20%,transparent);color:var(--ok)}
+.dot.drank{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+.dot.fut{opacity:.5}
+.note{font-size:12.5px;color:var(--muted)}
+</style>
+
+<div class="app" id="app"></div>
+<nav class="tabs"><div class="tabs-in" id="tabs"></div></nav>
+<div class="sheet" id="sheet" hidden>
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true">
+    <div class="sheet-head"><button class="icon-btn" id="sBack" aria-label="Back"></button><h2 id="sTitle"></h2><button class="icon-btn" id="sClose" aria-label="Close"></button></div>
+    <div class="sheet-body" id="sBody"></div>
+    <div class="sheet-foot" id="sFoot"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+document.documentElement.lang="fr";
+/* ---------- Constantes & données de référence ---------- */
+const G_STD = 10, ETH = 0.789;
+const ICONS = {
+  beer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6 6h10v14H6z"/><path d="M16 9h2.2a1.8 1.8 0 0 1 1.8 1.8v3.4a1.8 1.8 0 0 1-1.8 1.8H16"/><path d="M6 6a2.5 2.5 0 0 1 3-2.4A3 3 0 0 1 14 4a2 2 0 0 1 2 2"/></svg>',
+  wine:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M7.5 3h9l-.4 5.2a4.1 4.1 0 0 1-8.2 0z"/><path d="M8 7.5h8"/><path d="M12 12.3V20M8.5 20.5h7"/></svg>',
+  sparkling:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M9.6 2.5h4.8l-.6 8.6a1.8 1.8 0 0 1-3.6 0z"/><path d="M12 12.9V20.5M9 20.5h6"/><circle cx="12" cy="7.5" r=".6" fill="currentColor"/><circle cx="11.2" cy="5.2" r=".5" fill="currentColor"/></svg>',
+  cider:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4.5 8h15l-1.3 7.6A3.4 3.4 0 0 1 14.9 18.5H9.1a3.4 3.4 0 0 1-3.3-2.9z"/><path d="M9 18.5 8.5 21h7l-.5-2.5"/><path d="M12 8c0-2 1-3.5 3-4"/></svg>',
+  neat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M6.5 5h11l-1.6 14.5H8.1z"/><path d="M7.4 12.5h9.2"/></svg>',
+  cocktail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 4h16l-8 8.5z"/><path d="M12 12.5V20.5M8.5 20.5h7"/><path d="M15.5 7.5l3-5"/><circle cx="9.5" cy="6.4" r="1" fill="currentColor"/></svg>'
+};
+const LOGO = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13" fill="var(--accent)"/><path d="M13 11h22l-2.6 26.2a2 2 0 0 1-2 1.8H17.6a2 2 0 0 1-2-1.8z" fill="none" stroke="var(--accent-ink)" stroke-width="2.6" stroke-linejoin="round"/><path d="M14.6 23h18.8l-1.4 14H16z" fill="var(--beer)"/><g stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"><path d="M19 26.5v7M22.3 26.5v7M25.6 26.5v7M28.9 26.5v7"/><path d="M17.4 32.5l13.2-5"/></g><circle cx="20" cy="19.5" r="1.2" fill="var(--accent-ink)"/><circle cx="26.5" cy="16.5" r="1" fill="var(--accent-ink)"/></svg>';
+const UI = {
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M6 4h12l-1.5 16h-9z"/><path d="M6.8 10h10.4"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/></svg>',
+  set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>'
+};
+const CATS = {
+  beer:{label:'Bière', sub:'Blonde, IPA, ambrée…', glasses:[['Demi',25],['Bouteille / canette',33],['Pinte',50]], abv:5, min:0, max:15},
+  wine:{label:'Vin', sub:'Rouge, blanc, rosé', glasses:[['Verre',12.5]], abv:12.5, min:5, max:20},
+  sparkling:{label:'Effervescent', sub:'Champagne, crémant, prosecco', glasses:[['Flûte',10]], abv:12, min:5, max:15},
+  cider:{label:'Cidre', sub:'Brut, doux, poiré', glasses:[['Bolée',25],['Bouteille',33],['Pinte',50]], abv:5, min:0, max:12},
+  neat:{label:'Alcool sec', sub:'Rhum, whisky, pastis…', glasses:[['Shot',2],['Simple',4],['Double',6]], abv:40, min:15, max:70},
+  cocktail:{label:'Cocktail', sub:'Calculé selon la recette'}
+};
+const ORDER = ['beer','wine','sparkling','cider','neat','cocktail'];
+const ING_CATS = [
+  ['spirit','Spiritueux',4],['liqueur','Liqueurs',2],['wine','Vins & vermouths',6],['beer','Bières & cidres',10],
+  ['bitters','Bitters',0.1],['syrup','Sirops',1.5],['mixer','Softs & jus',10]
+];
+const ING_COLORS = {spirit:'var(--neat)',liqueur:'var(--wine)',wine:'var(--sparkling)',beer:'var(--beer)',bitters:'var(--bad)',syrup:'var(--cider)',mixer:'var(--cocktail)'};
+const INGS = {
+  spirit:[['Gin',40],['London dry gin',43],['Vodka',40],['Rhum blanc',40],['Rhum ambré',40],['Rhum épicé',35],['Rhum agricole',50],['Tequila blanco',40],['Tequila reposado',40],['Mezcal',42],['Bourbon',40],['Rye whiskey',45],['Whisky écossais',40],['Whiskey irlandais',40],['Whisky japonais',43],['Cognac',40],['Armagnac',40],['Calvados',40],['Pisco',40],['Cachaça',40],['Absinthe',60],['Pastis',45],['Grappa',40],['Eau-de-vie de fruit',40]],
+  liqueur:[['Triple sec',30],['Cointreau',40],['Grand Marnier',40],['Campari',25],['Aperol',11],['Amaretto',28],['Liqueur de café',20],['Crème de cassis',15],['Crème de mûre',16],['Liqueur de sureau',20],['Marasquin',32],['Chartreuse verte',55],['Chartreuse jaune',43],['Bénédictine',40],['Limoncello',30],['Liqueur à la crème',17],['Liqueur de pêche',20],['Liqueur de framboise',16.5],['Liqueur de menthe',21],['Fernet',39],['Amaro',30],['Suze',15],['Falernum',11],['Liqueur de coco',21]],
+  wine:[['Vermouth rouge',16],['Vermouth dry',18],['Vermouth blanc',16],['Lillet blanc',17],['Prosecco',11],['Champagne',12],['Crémant',12],['Vin blanc',12],['Vin rouge',13],['Vin rosé',12],['Porto',20],['Xérès fino',15],['Xérès PX',17]],
+  beer:[['Bière blonde',5],['IPA',6.5],['Stout',4.5],['Bière blanche',5],['Cidre',5]],
+  bitters:[['Angostura',44.7],['Orange bitters',28],["Peychaud's",35],['Bitter chocolat',45]],
+  syrup:[['Sirop de sucre',0],['Sirop de miel',0],["Sirop d'agave",0],['Grenadine',0],["Sirop d'orgeat",0],['Sirop de passion',0],['Sirop de vanille',0],['Sirop de cannelle',0]],
+  mixer:[['Tonic',0],['Eau gazeuse',0],['Ginger beer',0],['Ginger ale',0],['Cola',0],['Limonade',0],['Jus de citron vert',0],['Jus de citron',0],["Jus d'orange",0],['Jus de pamplemousse',0],["Jus d'ananas",0],['Jus de cranberry',0],['Jus de tomate',0],['Expresso',0],['Crème',0],['Crème de coco',0],["Blanc d'œuf",0],['Eau',0],['Menthe & citron vert pilés',0]]
+};
+const METHODS = {shaken:['Au shaker',0.25],stirred:['Verre à mélange',0.20],built:['Construit',0.10]};
+const I = (n,c,abv,cl)=>({n,c,abv,cl});
+const DEFAULT_COCKTAILS = [
+  {id:'d-spritz',name:'Aperol Spritz',method:'built',ings:[I('Prosecco','wine',11,9),I('Aperol','liqueur',11,6),I('Eau gazeuse','mixer',0,3)]},
+  {id:'d-negroni',name:'Negroni',method:'stirred',ings:[I('Gin','spirit',40,3),I('Campari','liqueur',25,3),I('Vermouth rouge','wine',16,3)]},
+  {id:'d-gt',name:'Gin tonic',method:'built',ings:[I('Gin','spirit',40,5),I('Tonic','mixer',0,15)]},
+  {id:'d-mojito',name:'Mojito',method:'built',ings:[I('Rhum blanc','spirit',40,5),I('Jus de citron vert','mixer',0,2.5),I('Sirop de sucre','syrup',0,2),I('Eau gazeuse','mixer',0,6)]},
+  {id:'d-margarita',name:'Margarita',method:'shaken',ings:[I('Tequila blanco','spirit',40,5),I('Triple sec','liqueur',30,2),I('Jus de citron vert','mixer',0,2.5)]},
+  {id:'d-espresso',name:'Espresso Martini',method:'shaken',ings:[I('Vodka','spirit',40,5),I('Liqueur de café','liqueur',20,2),I('Expresso','mixer',0,3),I('Sirop de sucre','syrup',0,1)]},
+  {id:'d-oldfash',name:'Old Fashioned',method:'stirred',ings:[I('Bourbon','spirit',40,6),I('Sirop de sucre','syrup',0,0.75),I('Angostura','bitters',44.7,0.1)]},
+  {id:'d-mule',name:'Moscow Mule',method:'built',ings:[I('Vodka','spirit',40,5),I('Jus de citron vert','mixer',0,1.5),I('Ginger beer','mixer',0,12)]},
+  {id:'d-daiquiri',name:'Daiquiri',method:'shaken',ings:[I('Rhum blanc','spirit',40,6),I('Jus de citron vert','mixer',0,2.5),I('Sirop de sucre','syrup',0,1.5)]},
+  {id:'d-sour',name:'Whisky Sour',method:'shaken',ings:[I('Bourbon','spirit',40,6),I('Jus de citron','mixer',0,3),I('Sirop de sucre','syrup',0,1.5),I("Blanc d'œuf",'mixer',0,2)]},
+  {id:'d-cuba',name:'Cuba Libre',method:'built',ings:[I('Rhum blanc','spirit',40,5),I('Cola','mixer',0,12),I('Jus de citron vert','mixer',0,1)]},
+  {id:'d-americano',name:'Americano',method:'built',ings:[I('Campari','liqueur',25,3),I('Vermouth rouge','wine',16,3),I('Eau gazeuse','mixer',0,6)]},
+  {id:'d-kir',name:'Kir',method:'built',ings:[I('Vin blanc','wine',12,10),I('Crème de cassis','liqueur',15,1.5)]},
+  {id:'d-kirroyal',name:'Kir royal',method:'built',ings:[I('Champagne','wine',12,10),I('Crème de cassis','liqueur',15,1.5)]},
+  {id:'d-ti',name:'Ti’ punch',method:'built',ings:[I('Rhum agricole','spirit',50,4),I('Sirop de sucre','syrup',0,1),I('Jus de citron vert','mixer',0,0.5)]},
+  {id:'d-pinacolada',name:'Piña Colada',method:'shaken',ings:[I('Rhum blanc','spirit',40,5),I('Crème de coco','mixer',0,3),I("Jus d'ananas",'mixer',0,9)]},
+  {id:'d-cosmo',name:'Cosmopolitan',method:'shaken',ings:[I('Vodka','spirit',40,4),I('Cointreau','liqueur',40,1.5),I('Jus de cranberry','mixer',0,3),I('Jus de citron vert','mixer',0,1)]}
+];
+const DEFAULT_SETTINGS = {weight:75, sex:'m', daily:2, weekly:10, dryGoal:2, legal:0.5, favs:[], startDate:null};
+
+/* ---------- Utilitaires ---------- */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n=>String(n).padStart(2,'0');
+const dkey = t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const mkey = t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)};
+const hm = t=>{const d=new Date(t);return pad(d.getHours())+'h'+pad(d.getMinutes())};
+const dec = (n,d=1)=>(Math.round(n*10**d)/10**d).toFixed(d).replace('.',',');
+const fmt1 = n=>dec(n,1);
+const fmtCl = cl=>(Math.round(cl*100)/100).toString().replace('.',',')+' cl';
+const fmtPct = v=>dec(v,1)+' %';
+const fmtStd = g=>{const v=g/G_STD;return v<0.05&&v>0?'<0,1':fmt1(v)};
+const fmtLegal = v=>dec(v,1);
+const uid = ()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+const gramsOf = (ml,abv)=>ml*abv/100*ETH;
+const startOfDay = t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
+const startOfWeek = t=>{const d=new Date(startOfDay(t));const w=(d.getDay()+6)%7;d.setDate(d.getDate()-w);return d.getTime()};
+const addDays = (t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};
+const toLocalInput = t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())};
+const cap = s=>s.charAt(0).toUpperCase()+s.slice(1);
+const DAY_FMT = new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+const SHORT_FMT = new Intl.DateTimeFormat('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+const MONTH_FMT = new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric'});
+const plural = (n,s,p)=>n>1?p:s;
+
+function calcCocktail(c){
+  let vol=0, alc=0;
+  for(const i of c.ings){ const ml=(+i.cl||0)*10; vol+=ml; alc+=ml*(+i.abv||0)/100; }
+  const dil = (METHODS[c.method]||METHODS.built)[1];
+  const served = vol*(1+dil);
+  return {vol, served, alc, g:alc*ETH, abvRaw: vol? alc/vol*100:0, abvServed: served? alc/served*100:0};
+}
+
+/* ---------- État ---------- */
+const S = {settings:{...DEFAULT_SETTINGS}, cocktails:[], months:{}, synced:false, tab:'today', calMonth:null, calSel:null};
+const LS='tally.v1';
+function loadLocal(){
+  try{ const raw=localStorage.getItem(LS); if(!raw) return; const d=JSON.parse(raw);
+    if(d.settings) S.settings={...DEFAULT_SETTINGS,...d.settings};
+    if(d.cocktails) S.cocktails=d.cocktails; if(d.months) S.months=d.months; if(d.tab) S.tab=d.tab;
+  }catch(e){}
+}
+function saveLocal(){ try{ localStorage.setItem(LS,JSON.stringify({settings:S.settings,cocktails:S.cocktails,months:S.months,tab:S.tab})); }catch(e){} }
+
+let ALL=[];
+function rebuild(){ ALL=Object.values(S.months).flat().sort((a,b)=>b.t-a.t); }
+
+/* ---------- Synchronisation (capacité db, espace privé par personne) ---------- */
+const sync = {db:null, base:null, chains:{}};
+const syncFail = e=>{ console.warn(e); toast(e&&e.code==='quota_exceeded'?'Stockage plein : il faut supprimer d’anciennes données.':'Synchro impossible. Enregistré sur ce téléphone pour l’instant.'); };
+function dbWrite(path,data){
+  saveLocal(); if(!sync.db) return;
+  sync.chains[path]=(sync.chains[path]||Promise.resolve()).then(()=>sync.db.doc(path).set(data)).catch(syncFail);
+}
+const saveSettings=()=>dbWrite(sync.base+'/settings',S.settings);
+const saveCocktails=()=>dbWrite(sync.base+'/cocktails',{list:S.cocktails});
+const saveMonth=m=>{
+  saveLocal(); if(!sync.db) return;
+  const ref=sync.db.doc(sync.base+'/settings').collection('months').doc(m);
+  sync.chains['m'+m]=(sync.chains['m'+m]||Promise.resolve()).then(()=>(S.months[m]&&S.months[m].length)?ref.set({items:S.months[m]}):ref.delete()).catch(syncFail);
+};
+
+async function initSync(){
+  if(!window.claude||!window.claude.use) return;
+  let db=null,user=null;
+  try{ [db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]); }catch(e){}
+  if(!db||!user) return;
+  let id=null; try{ id=await user.id(); }catch(e){}
+  if(!id) return;
+  sync.db=db; sync.base='data/users/'+id; S.synced=true;
+  const localMonths={...S.months}, localCk=[...S.cocktails], localSettings={...S.settings};
+  let firstMonths=true;
+  db.doc(sync.base+'/settings').onSnapshot(s=>{
+    if(s.exists){ S.settings={...DEFAULT_SETTINGS,...s.data()}; }
+    else if(!s.metadata.fromCache){ S.settings={...localSettings, startDate:localSettings.startDate||dkey(Date.now())}; saveSettings(); }
+    saveLocal(); render();
+  },e=>console.warn(e));
+  db.doc(sync.base+'/cocktails').onSnapshot(s=>{
+    if(s.exists){ S.cocktails=(s.data().list||[]); }
+    else if(!s.metadata.fromCache && localCk.length){ S.cocktails=localCk; saveCocktails(); }
+    saveLocal(); render();
+  },e=>console.warn(e));
+  db.doc(sync.base+'/settings').collection('months').onSnapshot(q=>{
+    const m={}; q.docs.forEach(d=>{ if(d.exists) m[d.id]=(d.data().items||[]); });
+    if(firstMonths && !q.metadata.fromCache){
+      firstMonths=false;
+      if(q.empty && Object.keys(localMonths).length){ S.months=localMonths; rebuild(); Object.keys(localMonths).forEach(saveMonth); render(); return; }
+    }
+    S.months=m; rebuild(); saveLocal(); render();
+  },e=>console.warn(e));
+  render();
+}
+
+/* ---------- Consommations ---------- */
+function addEntry(e, silent){
+  const m=mkey(e.t); (S.months[m]=S.months[m]||[]).push(e); rebuild(); saveMonth(m); render();
+  if(!silent) toast(`${esc(entryLabel(e))} ajouté · ${fmtStd(e.g)} verre${e.g/G_STD>=2?'s':''}`,()=>removeEntry(e.id,true));
+}
+function removeEntry(id, silent){
+  for(const m in S.months){ const i=S.months[m].findIndex(x=>x.id===id); if(i>=0){ const [e]=S.months[m].splice(i,1); if(!S.months[m].length) delete S.months[m]; rebuild(); saveMonth(m); render(); if(!silent) toast('Consommation supprimée',()=>addEntry(e,true)); return e; } }
+}
+function updateEntry(id, patch){ const old=removeEntry(id,true); if(!old) return; addEntry({...old,...patch},true); }
+const tplKey = e=>e.cat==='cocktail'?`c:${e.ck}:${e.serv||1}`:`s:${e.cat}:${(e.name||'').toLowerCase()}:${e.ml}:${e.abv}`;
+const tplOf = e=>e.cat==='cocktail'?{cat:'cocktail',ck:e.ck,name:e.name,serv:e.serv||1,g:e.g,ml:e.ml,abv:e.abv}:{cat:e.cat,name:e.name||'',ml:e.ml,abv:e.abv};
+function cocktailById(id){ return S.cocktails.find(c=>c.id===id)||DEFAULT_COCKTAILS.find(c=>c.id===id); }
+function entryFromTpl(tpl,t){
+  if(tpl.cat==='cocktail'){
+    const c=cocktailById(tpl.ck); const serv=tpl.serv||1;
+    if(c){ const r=calcCocktail(c); return {id:uid(),t,cat:'cocktail',ck:c.id,name:c.name,serv,ml:Math.round(r.served*serv),abv:+r.abvServed.toFixed(1),g:+(r.g*serv).toFixed(2)}; }
+    return {id:uid(),t,cat:'cocktail',ck:tpl.ck,name:tpl.name,serv,ml:tpl.ml,abv:tpl.abv,g:tpl.g};
+  }
+  return {id:uid(),t,cat:tpl.cat,name:tpl.name||'',ml:tpl.ml,abv:tpl.abv,g:+gramsOf(tpl.ml,tpl.abv).toFixed(2)};
+}
+const isFav = tpl=>S.settings.favs.some(f=>tplKey(f)===tplKey(tpl));
+function toggleFav(tpl){
+  const k=tplKey(tpl); const f=S.settings.favs;
+  S.settings.favs = f.some(x=>tplKey(x)===k)? f.filter(x=>tplKey(x)!==k) : [...f,tplOf(tpl)];
+  saveSettings(); render();
+}
+function quickTemplates(){
+  const favs=S.settings.favs.map(f=>({...f,fav:true}));
+  const seen=new Set(favs.map(tplKey)); const rec=[];
+  for(const e of ALL){ const k=tplKey(e); if(seen.has(k)) continue; seen.add(k); rec.push(tplOf(e)); if(rec.length>=6) break; }
+  return [...favs,...rec];
+}
+const entryLabel = e=>e.name||CATS[e.cat].label;
+const servLabel = s=>s===2?' ×2':s===0.5?' (½)':'';
+const entrySub = e=>e.cat==='cocktail'?`Cocktail${servLabel(e.serv||1)} · ${fmtPct(e.abv)}`:`${fmtCl(e.ml/10)} · ${fmtPct(e.abv)}`;
+const icon = cat=>`<span class="ico" style="--c:var(--${cat})">${ICONS[cat]}</span>`;
+const verres = g=>`${fmtStd(g)} verre${g/G_STD>=2?'s':''}`;
+
+/* ---------- Alcoolémie (Widmark, absorption 30 min, élimination 0,15 g/L/h) ---------- */
+function bacInfo(now){
+  const s=S.settings, W=Math.max(30,+s.weight||75), r=s.sex==='f'?0.6:0.7, Vd=W*r;
+  const elimMin=0.15*Vd/60, ABS=30;
+  const drinks=ALL.filter(e=>e.t<=now && e.t>now-24*3600e3).map(e=>({t:e.t,g:e.g})).sort((a,b)=>a.t-b.t);
+  const res={now:0,peak:0,zeroAt:null,legalAt:null};
+  if(!drinks.length) return res;
+  const step=60e3; let pool=0, t=drinks[0].t, lastAboveLegal=null;
+  const limit=now+48*3600e3;
+  while(t<=limit){
+    let add=0; for(const d of drinks){ if(t>=d.t && t<d.t+ABS*step) add+=d.g/ABS; }
+    pool=Math.max(0,pool+add-elimMin);
+    const bac=pool/Vd;
+    if(t<=now){ res.peak=Math.max(res.peak,bac); if(t+step>now) res.now=bac; }
+    else{
+      if(bac>=s.legal) lastAboveLegal=t;
+      const pending=drinks.some(d=>t<d.t+ABS*step);
+      if(pool<=0 && !pending){ res.zeroAt=t; break; }
+    }
+    t+=step;
+  }
+  if(res.now>=s.legal || lastAboveLegal) res.legalAt=(lastAboveLegal||now)+step;
+  return res;
+}
+
+/* ---------- Agrégats ---------- */
+function gramsByDay(){ const m={}; for(const e of ALL){ const k=dkey(e.t); m[k]=(m[k]||0)+e.g; } return m; }
+function sumRange(a,b){ let g=0; for(const e of ALL){ if(e.t>=a&&e.t<b) g+=e.g; } return g; }
+function trackStart(){ const sd=S.settings.startDate; const first=ALL.length?dkey(ALL[ALL.length-1].t):null; const c=[sd,first].filter(Boolean).sort()[0]; return c||dkey(Date.now()); }
+function streaks(){
+  const byDay=gramsByDay(); const start=new Date(trackStart()+'T00:00:00').getTime(); const today=startOfDay(Date.now());
+  let best=0,run=0;
+  for(let t=start;t<=today;t=addDays(t,1)){ if(!byDay[dkey(t)]){run++;best=Math.max(best,run);} else run=0; }
+  return {current:run,best};
+}
+function dryDaysThisWeek(now){
+  const byDay=gramsByDay(), start=trackStart(); let dry=0, past=0;
+  for(let t=startOfWeek(now);t<=startOfDay(now);t=addDays(t,1)){ const k=dkey(t); if(k<start) continue; past++; if(!byDay[k]) dry++; }
+  return {dry,past};
+}
+
+/* ---------- Affichage ---------- */
+function render(){
+  ({today:renderToday,calendar:renderCalendar,stats:renderStats,settings:renderSettings})[S.tab]($('#app'));
+  renderTabs();
+}
+function renderTabs(){
+  const t=[['today','Aujourd’hui',UI.today],['calendar','Calendrier',UI.cal],['stats','Bilan',UI.stats],['settings','Réglages',UI.set]];
+  $('#tabs').innerHTML=t.map(([k,l,i])=>`<button class="tab" data-tab="${k}" ${S.tab===k?'aria-current="page"':''}>${i}<span>${l}</span></button>`).join('');
+}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]'); if(!b) return; S.tab=b.dataset.tab; saveLocal(); render(); window.scrollTo(0,0);});
+
+function renderToday(app){
+  const now=Date.now(), today=startOfDay(now), s=S.settings;
+  const todays=ALL.filter(e=>e.t>=today && e.t<addDays(today,1));
+  const gToday=todays.reduce((a,e)=>a+e.g,0);
+  const wk=startOfWeek(now), gWeek=sumRange(wk,addDays(wk,7));
+  const b=bacInfo(now);
+  const st=b.now<=0.001?['s-zero','À jeun']:b.now<0.2?['s-ok','Faible']:b.now<s.legal?['s-warn','En hausse']:['s-bad',`Au-dessus de ${fmtLegal(s.legal)} g/L`];
+  const dayPct=Math.min(100,gToday/G_STD/s.daily*100), wkPct=Math.min(100,gWeek/G_STD/s.weekly*100);
+  const q=quickTemplates();
+  const {current}=streaks();
+  const dw=dryDaysThisWeek(now);
+  app.innerHTML=`
+    <div class="topbar"><div class="brand">${LOGO}<h1>Tally</h1></div><span class="date">${esc(cap(DAY_FMT.format(now)))}</span></div>
+    <section class="panel today" aria-label="Aujourd’hui">
+      <div class="metric"><div class="eyebrow">Aujourd’hui</div><div class="big num">${fmtStd(gToday)}</div><div class="unit">verres standard · ${Math.round(gToday)} g</div></div>
+      <div class="metric"><div class="eyebrow">Alcoolémie estimée</div><div class="big num">${dec(b.now,2)}</div><div class="unit">g/L de sang · ${dec(b.now/2,2)} mg/L d’air</div>
+        <span class="bac-status ${st[0]}"><i></i>${st[1]}</span></div>
+      ${b.zeroAt?`<div class="bac-times">${b.legalAt?`<span>Sous ${fmtLegal(s.legal)} g/L à <b class="num">${hm(b.legalAt)}</b></span>`:''}<span>Retour à zéro à <b class="num">${hm(b.zeroAt)}</b>${dkey(b.zeroAt)!==dkey(now)?' (demain)':''}</span>${b.peak>b.now+0.005?`<span>Pic <b class="num">${dec(b.peak,2)}</b></span>`:''}</div>`:
+        `<div class="bac-times"><span>${gToday?'Alcool entièrement éliminé':`Sans alcool aujourd’hui${current>1?` · <b class="num">${current}</b> jours d’affilée`:''}`}</span></div>`}
+      <div class="gauge">
+        <div class="gauge-row"><span>Aujourd’hui (max ${s.daily})</span><b class="num">${fmtStd(gToday)} / ${s.daily}</b></div>
+        <div class="track ${gToday/G_STD>s.daily?'over':''}"><span style="width:${dayPct}%"></span></div>
+        <div class="gauge-row" style="margin-top:4px"><span>Cette semaine (max ${s.weekly})</span><b class="num">${fmtStd(gWeek)} / ${s.weekly}</b></div>
+        <div class="track ${gWeek/G_STD>s.weekly?'over':''}"><span style="width:${wkPct}%"></span></div>
+        <div class="gauge-row" style="margin-top:4px"><span>Jours sans alcool cette semaine</span><b class="num">${dw.dry} / objectif ${s.dryGoal}</b></div>
+        <div class="dots">${Array.from({length:7},(_,i)=>{const t=addDays(wk,i),k=dkey(t),g=gramsByDay()[k]||0,fut=t>now||k<trackStart();return `<span class="dot ${fut?'fut':g?'drank':'dry'}" title="${esc(SHORT_FMT.format(t))}">${'LMMJVSD'[i]}</span>`}).join('')}</div>
+      </div>
+      ${b.now>0.001?`<div class="disclaimer">Simple estimation : le repas, le rythme et votre corps la font beaucoup varier. Ne l’utilisez jamais pour décider si vous pouvez conduire.</div>`:''}
+    </section>
+    <section class="section">
+      <div class="section-h"><h2>Ajout rapide</h2><span class="hint">${q.length?'Un appui = ajouté maintenant':''}</span></div>
+      ${q.length?`<div class="quick">${q.map((t,i)=>`<button class="chip ${t.fav?'fav':''}" data-q="${i}">${icon(t.cat)}<span><span class="t">${esc(t.name||CATS[t.cat].label)}</span><br><span class="s">${t.cat==='cocktail'?`Cocktail${servLabel(t.serv)}`:`${fmtCl(t.ml/10)} · ${fmtPct(t.abv)}`}</span></span></button>`).join('')}</div>`
+        :`<div class="hint">Vos boissons récentes et favorites apparaîtront ici, à ajouter d’un seul appui.</div>`}
+    </section>
+    <button class="add-btn" id="addBtn">${UI.plus}Ajouter une boisson</button>
+    <section class="section">
+      <div class="section-h"><h2>Aujourd’hui</h2><span class="hint num">${todays.length} ${plural(todays.length,'boisson','boissons')}</span></div>
+      ${todays.length?`<div class="list">${todays.map(rowHtml).join('')}</div>`:`<div class="empty">Rien d’enregistré aujourd’hui.</div>`}
+    </section>`;
+  app.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>addEntry(entryFromTpl(q[+b.dataset.q],Date.now())));
+  $('#addBtn').onclick=()=>openAdd();
+  bindRows(app);
+}
+function rowHtml(e){
+  return `<button class="row" data-e="${e.id}">${icon(e.cat)}<span class="main"><div class="t">${esc(entryLabel(e))}${isFav(e)?' <span style="color:var(--accent)">★</span>':''}</div><div class="s num">${hm(e.t)} · ${esc(entrySub(e))}</div></span><span class="v num">${fmtStd(e.g)}<small>verre${e.g/G_STD>=2?'s':''}</small></span></button>`;
+}
+function bindRows(root){ root.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const e=ALL.find(x=>x.id===b.dataset.e); if(e) openSheet(vEntry(e));}); }
+
+function renderCalendar(app){
+  const now=Date.now();
+  if(!S.calMonth){ const d=new Date(now); S.calMonth=[d.getFullYear(),d.getMonth()]; }
+  const [y,mo]=S.calMonth; const first=new Date(y,mo,1).getTime();
+  const gridStart=startOfWeek(first); const byDay=gramsByDay(); const start=trackStart(); const todayK=dkey(now);
+  const {current,best}=streaks();
+  let dryMonth=0, cells='';
+  for(let i=0;i<42;i++){
+    const t=addDays(gridStart,i), k=dkey(t), d=new Date(t), inMonth=d.getMonth()===mo;
+    if(i>=35 && !inMonth) break;
+    const g=byDay[k]||0, tracked=k>=start&&k<=todayK;
+    let cls='day'; if(!inMonth) cls+=' out';
+    if(inMonth&&tracked){ if(!g){cls+=' dry'; dryMonth++;} else { const u=g/G_STD; cls+=u<=S.settings.daily?' l1':u<=S.settings.daily*2?' l2':' l3'; } }
+    if(k===todayK) cls+=' today'; if(k===S.calSel) cls+=' sel';
+    cells+=`<button class="${cls}" data-day="${k}" aria-label="${esc(SHORT_FMT.format(t))}${g?', '+fmtStd(g)+' verres standard':''}"><span class="num">${d.getDate()}</span>${inMonth&&g?`<small class="num">${fmtStd(g)}</small>`:''}</button>`;
+  }
+  const sel=S.calSel; const selEntries=sel?ALL.filter(e=>dkey(e.t)===sel):[];
+  app.innerHTML=`
+    <div class="topbar"><h1>Calendrier</h1></div>
+    <div class="tiles">
+      <div class="tile"><b class="num">${current}</b><span>${plural(current,'jour','jours')} sans alcool d’affilée</span></div>
+      <div class="tile"><b class="num">${best}</b><span>meilleure série</span></div>
+      <div class="tile"><b class="num">${dryMonth}</b><span>${plural(dryMonth,'jour','jours')} sans ce mois-ci</span></div>
+    </div>
+    <section class="panel section">
+      <div class="cal-head"><button class="icon-btn" id="pm" aria-label="Mois précédent">${UI.back}</button><h2>${esc(cap(MONTH_FMT.format(first)))}</h2><button class="icon-btn" id="nm" aria-label="Mois suivant" style="transform:scaleX(-1)">${UI.back}</button></div>
+      <div class="cal">${['L','M','M','J','V','S','D'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>
+      <div class="cal-legend"><span><i style="background:color-mix(in srgb,var(--ok) 30%,transparent)"></i>Sans alcool</span><span><i style="background:color-mix(in srgb,var(--warn) 30%,transparent)"></i>≤ ${S.settings.daily} verres</span><span><i style="background:color-mix(in srgb,var(--warn) 55%,transparent)"></i>≤ ${S.settings.daily*2}</span><span><i style="background:color-mix(in srgb,var(--bad) 55%,transparent)"></i>Plus</span></div>
+    </section>
+    ${sel?`<section class="section"><div class="section-h"><h2>${esc(cap(DAY_FMT.format(new Date(sel+'T12:00:00'))))}</h2><button class="mini-btn" id="addDay">+ Ajouter</button></div>
+      ${selEntries.length?`<div class="list">${selEntries.map(rowHtml).join('')}</div>`:`<div class="empty">${sel<start?'Avant le début du suivi.':'Journée sans alcool.'}</div>`}</section>`:`<p class="note">Touchez un jour pour voir ou ajouter ses consommations. Un jour sans rien d’enregistré compte comme un jour sans alcool.</p>`}`;
+  $('#pm').onclick=()=>{S.calMonth=mo?[y,mo-1]:[y-1,11];render();};
+  $('#nm').onclick=()=>{S.calMonth=mo<11?[y,mo+1]:[y+1,0];render();};
+  app.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>{S.calSel=S.calSel===b.dataset.day?null:b.dataset.day; render();});
+  const ad=$('#addDay'); if(ad) ad.onclick=()=>{ const t=new Date(sel+'T20:00:00').getTime(); openAdd(sel===todayK?Date.now():t); };
+  bindRows(app);
+}
+
+function renderStats(app){
+  const now=Date.now(), s=S.settings, wk=startOfWeek(now);
+  const weeks=[]; for(let i=7;i>=0;i--){ const a=addDays(wk,-7*i); weeks.push({a,g:sumRange(a,addDays(a,7))}); }
+  const d30=addDays(startOfDay(now),-29), last30=ALL.filter(e=>e.t>=d30);
+  const g30=last30.reduce((a,e)=>a+e.g,0);
+  const byDay=gramsByDay(); const start=trackStart(); let dry=0,tracked=0,maxDay=0,overDays=0;
+  for(let t=d30;t<=now;t=addDays(t,1)){ const k=dkey(t); if(k<start) continue; tracked++; const g=byDay[k]||0; if(!g) dry++; if(g/G_STD>s.daily) overDays++; maxDay=Math.max(maxDay,g); }
+  const drinkDays=tracked-dry;
+  const avgWeek=weeks.slice(0,7).reduce((a,w)=>a+w.g,0)/7;
+  const top={}; for(const e of last30){ const k=entryLabel(e)+'|'+e.cat; top[k]=top[k]||{n:entryLabel(e),cat:e.cat,c:0,g:0}; top[k].c++; top[k].g+=e.g; }
+  const topList=Object.values(top).sort((a,b)=>b.g-a.g).slice(0,6);
+  const byCat={}; for(const e of last30) byCat[e.cat]=(byCat[e.cat]||0)+e.g;
+  const W=340,H=170,pl=26,pb=22,pt=10, maxV=Math.max(s.weekly*1.25,...weeks.map(w=>w.g/G_STD))||1;
+  const nice=maxV<=12?2:maxV<=30?5:10; const top_=Math.ceil(maxV/nice)*nice;
+  const y=v=>pt+(H-pt-pb)*(1-v/top_); const bw=(W-pl)/weeks.length;
+  let svg=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verres standard par semaine, 8 dernières semaines">`;
+  for(let v=0;v<=top_;v+=nice) svg+=`<line x1="${pl}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${pl-5}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  weeks.forEach((w,i)=>{ const u=w.g/G_STD, x=pl+i*bw+bw*.18, h=y(0)-y(u), last=i===weeks.length-1;
+    svg+=`<rect x="${x}" y="${y(u)}" width="${bw*.64}" height="${Math.max(0,h)}" rx="4" fill="${u>s.weekly?'var(--bad)':'var(--accent)'}" opacity="${last?1:.75}"/>`;
+    if(u>0) svg+=`<text x="${x+bw*.32}" y="${y(u)-4}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${fmt1(u)}</text>`;
+    const d=new Date(w.a); svg+=`<text x="${x+bw*.32}" y="${H-6}" text-anchor="middle">${d.getDate()}/${d.getMonth()+1}</text>`; });
+  svg+=`<line x1="${pl}" x2="${W}" y1="${y(s.weekly)}" y2="${y(s.weekly)}" stroke="var(--ink)" stroke-dasharray="4 4" stroke-width="1.2"/><text x="${W}" y="${y(s.weekly)-4}" text-anchor="end" style="fill:var(--ink)">repère ${s.weekly}</text></svg>`;
+  const totalCat=Object.values(byCat).reduce((a,b)=>a+b,0)||1;
+  app.innerHTML=`
+    <div class="topbar"><h1>Bilan</h1><span class="date">30 derniers jours</span></div>
+    <div class="tiles two">
+      <div class="tile"><b class="num">${fmtStd(g30)}</b><span>verres standard sur 30 jours</span></div>
+      <div class="tile"><b class="num">${fmt1(avgWeek/G_STD)}</b><span>moyenne par semaine (7 semaines)</span></div>
+      <div class="tile"><b class="num">${tracked?Math.round(dry/tracked*100):0} %</b><span>jours sans alcool (${dry} sur ${tracked})</span></div>
+      <div class="tile"><b class="num">${overDays}</b><span>${plural(overDays,'jour','jours')} au-delà de ${s.daily} verres · max ${fmtStd(maxDay)}</span></div>
+    </div>
+    <section class="panel section"><div class="section-h"><h2>Total par semaine</h2><span class="hint">verres standard, lun.–dim.</span></div>${svg}</section>
+    <section class="section"><div class="section-h"><h2>Ce que vous buvez</h2></div>
+      ${last30.length?`<div class="comp" role="img" aria-label="Répartition par type">${ORDER.filter(c=>byCat[c]).map(c=>`<span style="width:${byCat[c]/totalCat*100}%;background:var(--${c})"></span>`).join('')}</div>
+      <div class="legend">${ORDER.filter(c=>byCat[c]).map(c=>`<span><i style="background:var(--${c})"></i>${CATS[c].label} ${Math.round(byCat[c]/totalCat*100)} %</span>`).join('')}</div>
+      <div class="list">${topList.map(t=>`<div class="row">${icon(t.cat)}<span class="main"><div class="t">${esc(t.n)}</div><div class="s num">${t.c} fois</div></span><span class="v num">${fmtStd(t.g)}<small>verres</small></span></div>`).join('')}</div>`
+      :`<div class="empty">Enregistrez quelques boissons pour voir la répartition.</div>`}
+      ${drinkDays?`<p class="note">En moyenne ${fmt1(g30/G_STD/drinkDays)} verres par jour de consommation.</p>`:''}
+    </section>`;
+}
+
+function renderSettings(app){
+  const s=S.settings;
+  app.innerHTML=`
+    <div class="topbar"><h1>Réglages</h1></div>
+    <section class="panel section">
+      <h2 style="font-size:17px">Vous</h2>
+      <div class="field"><label for="wt">Poids</label><div class="inp-sfx"><input class="inp num" id="wt" type="number" inputmode="decimal" min="30" max="250" value="${s.weight}"><span>kg</span></div></div>
+      <div class="field"><span class="lbl">Sexe (pour le calcul d’alcoolémie)</span><div class="seg" id="sex"><button data-v="m" aria-pressed="${s.sex==='m'}">Homme</button><button data-v="f" aria-pressed="${s.sex==='f'}">Femme</button></div></div>
+      <p class="note">L’alcoolémie suit la formule de Widmark (coefficient de diffusion 0,7 pour un homme, 0,6 pour une femme), avec 30 minutes d’absorption par verre et environ 0,15 g/L éliminé par heure.</p>
+    </section>
+    <section class="panel section">
+      <h2 style="font-size:17px">Repères</h2>
+      <div class="inp-row">
+        <div class="field" style="flex:1"><label for="dl">Par jour</label><div class="inp-sfx"><input class="inp num" id="dl" type="number" inputmode="numeric" min="0" max="20" value="${s.daily}"><span>verres</span></div></div>
+        <div class="field" style="flex:1"><label for="wl">Par semaine</label><div class="inp-sfx"><input class="inp num" id="wl" type="number" inputmode="numeric" min="0" max="80" value="${s.weekly}"><span>verres</span></div></div>
+      </div>
+      <div class="field"><label for="dg">Objectif de jours sans alcool par semaine</label><div class="inp-sfx"><input class="inp num" id="dg" type="number" inputmode="numeric" min="0" max="7" value="${s.dryGoal}"><span>jours</span></div></div>
+      <p class="note">Repères de Santé publique France et de l’INCa : <b>maximum 2 verres par jour, et pas tous les jours</b> ; pas plus de 10 verres par semaine ; des jours sans consommation chaque semaine. Le nombre de jours sans est votre objectif personnel.</p>
+      <p class="note">1 verre standard = 10 g d’alcool pur, soit environ un demi de bière à 5 % (25 cl), un verre de vin à 12 % (10 cl), une flûte de champagne (10 cl) ou 3 cl d’alcool fort à 40 %.</p>
+    </section>
+    <section class="panel section">
+      <h2 style="font-size:17px">Conduite</h2>
+      <div class="field"><span class="lbl">Taux légal</span><div class="seg" id="legal"><button data-v="0.5" aria-pressed="${s.legal==0.5}">0,5 g/L<small>0,25 mg/L d’air · permis standard</small></button><button data-v="0.2" aria-pressed="${s.legal==0.2}">0,2 g/L<small>0,10 mg/L · probatoire, transport en commun</small></button></div></div>
+      <p class="note">Ces seuils sont ceux du Code de la route. L’estimation de l’app ne remplace pas un éthylotest : dans le doute, ne conduisez pas.</p>
+    </section>
+    <section class="section">
+      <div class="section-h"><h2>Favoris</h2></div>
+      ${s.favs.length?`<div class="list">${s.favs.map((f,i)=>`<div class="row">${icon(f.cat)}<span class="main"><div class="t">${esc(f.name||CATS[f.cat].label)}</div><div class="s">${f.cat==='cocktail'?'Cocktail'+servLabel(f.serv):fmtCl(f.ml/10)+' · '+fmtPct(f.abv)}</div></span><button class="mini-btn" data-unfav="${i}">Retirer</button></div>`).join('')}</div>`:`<div class="empty">Ajoutez une boisson aux favoris depuis son détail pour l’épingler en tête de l’ajout rapide.</div>`}
+    </section>
+    <section class="section">
+      <div class="section-h"><h2>Mes cocktails</h2><button class="mini-btn" id="newCk">+ Nouveau</button></div>
+      ${S.cocktails.length?`<div class="list">${S.cocktails.map(c=>`<button class="row" data-ck="${c.id}">${icon('cocktail')}<span class="main"><div class="t">${esc(c.name)}</div><div class="s">${esc(c.ings.map(i=>i.n).join(', '))}</div></span><span class="v num">${fmtStd(calcCocktail(c).g)}<small>verres</small></span></button>`).join('')}</div>`:`<div class="empty">Les cocktails que vous créez ou modifiez apparaissent ici.</div>`}
+    </section>
+    <section class="panel section">
+      <h2 style="font-size:17px">Besoin d’en parler ?</h2>
+      <p class="note">Alcool Info Service : <b class="num" style="color:var(--ink);user-select:all">0 980 980 930</b>, appel anonyme et non surtaxé, tous les jours de 8h à 23h. Aussi sur alcool-info-service.fr.</p>
+    </section>
+    <section class="panel section">
+      <h2 style="font-size:17px">Sauvegarde</h2>
+      <p class="note">Tout est stocké uniquement sur ce téléphone, sans compte ni connexion. ${ALL.length} ${plural(ALL.length,'boisson enregistrée','boissons enregistrées')} depuis le ${esc(new Date(trackStart()+'T12:00:00').toLocaleDateString('fr-FR'))}. Exportez de temps en temps une copie (dans Fichiers ou iCloud Drive) : si l’app est supprimée, les données le sont aussi.</p>
+      <div class="btn-row"><button class="ghost" id="exp">Exporter</button><label class="ghost file-btn" for="imp">Importer<input type="file" id="imp" accept="application/json,.json"></label></div>
+      <p class="note" id="impMsg" hidden></p>
+    </section>`;
+  const num=(id,key,min,max)=>{ const el=$('#'+id); el.onchange=()=>{ let v=parseFloat(el.value); if(isNaN(v)) v=DEFAULT_SETTINGS[key]; v=Math.min(max,Math.max(min,v)); S.settings[key]=v; el.value=v; saveSettings(); }; };
+  num('wt','weight',30,250); num('dl','daily',0,20); num('wl','weekly',0,80); num('dg','dryGoal',0,7);
+  $('#sex').onclick=e=>{const b=e.target.closest('button'); if(!b) return; S.settings.sex=b.dataset.v; saveSettings(); render();};
+  $('#legal').onclick=e=>{const b=e.target.closest('button'); if(!b) return; S.settings.legal=+b.dataset.v; saveSettings(); render();};
+  app.querySelectorAll('[data-unfav]').forEach(b=>b.onclick=()=>{S.settings.favs.splice(+b.dataset.unfav,1); saveSettings(); render();});
+  app.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>openSheet(vBuilder(cocktailById(b.dataset.ck),{fromSettings:true})));
+  $('#newCk').onclick=()=>openSheet(vBuilder(null,{fromSettings:true}));
+  $('#exp').onclick=exportData;
+  $('#imp').onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importData(f); e.target.value=''; };
+}
+async function exportData(){
+  const data=JSON.stringify({app:'tally',version:1,exported:new Date().toISOString(),settings:S.settings,cocktails:S.cocktails,months:S.months},null,1);
+  const name='tally-sauvegarde-'+dkey(Date.now())+'.json';
+  const file=new File([data],name,{type:'application/json'});
+  try{ if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'Sauvegarde Tally'}); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+}
+function importData(f){
+  const r=new FileReader();
+  r.onload=()=>{ let d; try{ d=JSON.parse(r.result); }catch(e){ return toast('Fichier illisible : choisissez un export Tally (.json).'); }
+    if(!d||d.app!=='tally'||!d.months){ return toast('Ce fichier n’est pas une sauvegarde Tally.'); }
+    const n=Object.values(d.months).flat().length;
+    const msg=$('#impMsg'); msg.hidden=false;
+    msg.innerHTML=`Remplacer vos données par cette sauvegarde (${n} boissons) ? <button class="mini-btn" id="impOk">Remplacer</button> <button class="mini-btn" id="impNo">Annuler</button>`;
+    $('#impNo').onclick=()=>{ msg.hidden=true; };
+    $('#impOk').onclick=()=>{ S.settings={...DEFAULT_SETTINGS,...d.settings}; S.cocktails=d.cocktails||[]; S.months=d.months; rebuild(); saveLocal(); render(); toast('Sauvegarde restaurée'); };
+  };
+  r.readAsText(f);
+}
+
+/* ---------- Navigation des feuilles ---------- */
+const sheet={stack:[]};
+function openSheet(view){ sheet.stack=[view]; $('#sheet').hidden=false; document.body.style.overflow='hidden'; showView(); }
+function pushView(view){ sheet.stack.push(view); showView(); }
+function popView(){ sheet.stack.pop(); sheet.stack.length?showView():closeSheet(); }
+function closeSheet(){ sheet.stack=[]; $('#sheet').hidden=true; document.body.style.overflow=''; }
+function showView(){
+  const v=sheet.stack[sheet.stack.length-1];
+  $('#sTitle').textContent=v.title; $('#sBack').innerHTML=sheet.stack.length>1?UI.back:''; $('#sBack').style.visibility=sheet.stack.length>1?'visible':'hidden';
+  $('#sClose').innerHTML=UI.close; $('#sBody').innerHTML=''; $('#sFoot').innerHTML=''; $('#sBody').scrollTop=0;
+  v.render($('#sBody'),$('#sFoot'));
+}
+$('#sBack').onclick=popView; $('#sClose').onclick=closeSheet; $('#scrim').onclick=closeSheet;
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('#sheet').hidden) closeSheet(); });
+function openAdd(presetT){ openSheet(vCategory(presetT)); }
+
+function timeField(t){ return `<div class="field"><label for="when">Quand</label><input class="inp num" id="when" type="datetime-local" value="${toLocalInput(t)}"></div>`; }
+const readTime = fallback=>{ const v=$('#when')&&$('#when').value; const t=v?new Date(v).getTime():NaN; return isNaN(t)?fallback:t; };
+
+function vCategory(presetT){
+  return {title:'Ajouter une boisson', render(body){
+    body.innerHTML=`<div class="cats">${ORDER.map(c=>`<button class="cat" data-c="${c}">${icon(c)}<span><b>${CATS[c].label}</b><br><span>${CATS[c].sub}</span></span></button>`).join('')}</div>`;
+    body.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{ const c=b.dataset.c; pushView(c==='cocktail'?vCocktails(presetT):vSimple(c,presetT)); });
+  }};
+}
+
+function vSimple(cat,presetT){
+  const C=CATS[cat];
+  const last=ALL.find(e=>e.cat===cat);
+  const st={ml:last?last.ml:C.glasses[C.glasses.length>1?1:0][1]*10, abv:last?last.abv:C.abv, name:'', t:presetT||Date.now()};
+  if(cat==='beer'&&!last) st.ml=500;
+  return {title:C.label, render(body,foot){
+    const names=[...new Set(ALL.filter(e=>e.cat===cat&&e.name).map(e=>e.name))].slice(0,12);
+    const isPreset=C.glasses.some(g=>g[1]*10===st.ml);
+    body.innerHTML=`
+      <div class="field"><span class="lbl">Verre</span><div class="seg" id="gl">${C.glasses.map(([n,cl])=>`<button data-ml="${cl*10}" aria-pressed="${st.ml===cl*10}">${n}<small>${fmtCl(cl)}</small></button>`).join('')}</div>
+        <div class="inp-row"><span class="note" style="white-space:nowrap">Autre volume</span><div class="inp-sfx"><input class="inp num" id="cust" type="number" inputmode="decimal" step="0.5" min="1" max="200" placeholder="—" value="${isPreset?'':st.ml/10}"><span>cl</span></div></div></div>
+      <div class="field"><span class="lbl">Degré d’alcool</span>
+        <div class="wheel-wrap"><button class="step-btn" id="minus" aria-label="Moins fort">−</button><div class="wheel-box" id="wheel"></div><button class="step-btn" id="plusb" aria-label="Plus fort">+</button></div></div>
+      <div class="field"><label for="nm">Nom <span style="text-transform:none;letter-spacing:0;font-weight:500">(facultatif)</span></label>
+        <input class="inp" id="nm" list="nms" placeholder="${{beer:'ex. IPA, Leffe',wine:'ex. Côtes du Rhône',sparkling:'ex. Champagne',cider:'ex. Cidre brut',neat:'ex. Pastis, rhum'}[cat]}" autocomplete="off"><datalist id="nms">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        ${names.length?`<div class="seg" id="nmchips">${names.slice(0,6).map(n=>`<button data-n="${esc(n)}" aria-pressed="false" style="padding:6px 11px;min-width:0;font-size:13px">${esc(n)}</button>`).join('')}</div>`:''}</div>
+      ${timeField(st.t)}`;
+    foot.innerHTML=`<div class="summary"><span class="l" id="sumL"></span><span class="r num" id="sumR"></span></div><button class="primary" id="go">Ajouter</button>`;
+    const upd=()=>{ const g=gramsOf(st.ml,st.abv); $('#sumL').textContent=`${fmtCl(st.ml/10)} à ${fmtPct(st.abv)} · ${Math.round(g)} g d’alcool`; $('#sumR').innerHTML=`${fmtStd(g)} <small>verre${g/G_STD>=2?'s':''}</small>`; $('#go').disabled=!(st.ml>0); };
+    const W=makeWheel($('#wheel'),C.min,C.max,0.1,st.abv,v=>{st.abv=v;upd();});
+    $('#minus').onclick=()=>W.nudge(-1); $('#plusb').onclick=()=>W.nudge(1);
+    $('#gl').onclick=e=>{const b=e.target.closest('[data-ml]'); if(!b) return; st.ml=+b.dataset.ml; $('#cust').value=''; body.querySelectorAll('#gl button').forEach(x=>x.setAttribute('aria-pressed',x===b)); upd();};
+    $('#cust').oninput=e=>{const v=parseFloat(e.target.value); if(v>0){st.ml=Math.round(v*100)/10; body.querySelectorAll('#gl button').forEach(x=>x.setAttribute('aria-pressed','false'));} upd();};
+    $('#nm').oninput=e=>{st.name=e.target.value.trim();};
+    $('#nm').onchange=()=>{ const pick=ALL.find(x=>x.cat===cat&&x.name&&x.name.toLowerCase()===st.name.toLowerCase()); if(pick) W.set(pick.abv); };
+    const ch=$('#nmchips'); if(ch) ch.onclick=e=>{const b=e.target.closest('[data-n]'); if(!b) return; st.name=b.dataset.n; $('#nm').value=st.name; const pick=ALL.find(x=>x.cat===cat&&x.name===st.name); if(pick){ W.set(pick.abv); st.ml=pick.ml; const pb=body.querySelector(`#gl [data-ml="${pick.ml}"]`); body.querySelectorAll('#gl button').forEach(x=>x.setAttribute('aria-pressed',x===pb)); $('#cust').value=pb?'':pick.ml/10; } ch.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); upd();};
+    $('#go').onclick=()=>{ const t=readTime(Date.now()); addEntry({id:uid(),t,cat,name:st.name,ml:st.ml,abv:st.abv,g:+gramsOf(st.ml,st.abv).toFixed(2)}); closeSheet(); };
+    upd();
+  }};
+}
+
+function makeWheel(box,min,max,step,value,onChange){
+  const vals=[]; for(let v=min; v<=max+1e-9; v+=step) vals.push(Math.round(v*10)/10);
+  box.innerHTML=`<div class="wheel" tabindex="0" role="spinbutton" aria-label="Degré d’alcool"><div class="wheel-pad"></div>${vals.map(v=>`<div class="wheel-item">${fmtPct(v)}</div>`).join('')}<div class="wheel-pad"></div></div><div class="wheel-sel"></div>`;
+  const el=box.querySelector('.wheel'), items=el.querySelectorAll('.wheel-item'), H=40;
+  let idx=0;
+  const near=v=>{let b=0;vals.forEach((x,i)=>{if(Math.abs(x-v)<Math.abs(vals[b]-v))b=i});return b;};
+  const mark=i=>{ if(i===idx&&items[i].classList.contains('on')) return; items[idx]&&items[idx].classList.remove('on'); idx=i; items[i].classList.add('on'); el.setAttribute('aria-valuenow',vals[i]); el.setAttribute('aria-valuetext',fmtPct(vals[i])); onChange(vals[i]); };
+  const go=(i,smooth)=>{ i=Math.max(0,Math.min(vals.length-1,i)); el.scrollTo({top:i*H,behavior:smooth?'smooth':'auto'}); mark(i); };
+  el.addEventListener('scroll',()=>{ mark(Math.max(0,Math.min(vals.length-1,Math.round(el.scrollTop/H)))); });
+  el.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'){e.preventDefault();go(idx-1,true);} if(e.key==='ArrowDown'){e.preventDefault();go(idx+1,true);} });
+  items.forEach((it,i)=>it.onclick=()=>go(i,true));
+  idx=near(value); items[idx].classList.add('on'); onChange(vals[idx]);
+  requestAnimationFrame(()=>{ el.scrollTop=idx*H; requestAnimationFrame(()=>{ el.scrollTop=idx*H; }); });
+  return {nudge:d=>go(idx+d,true), set:v=>go(near(v),true)};
+}
+
+function vCocktails(presetT){
+  return {title:'Cocktails', render(body){
+    const use={}; for(const e of ALL) if(e.ck) use[e.ck]=(use[e.ck]||0)+1;
+    const hidden=new Set(S.cocktails.map(c=>c.replaces).filter(Boolean));
+    const all=[...S.cocktails, ...DEFAULT_COCKTAILS.filter(c=>!hidden.has(c.id))].sort((a,b)=>(use[b.id]||0)-(use[a.id]||0)||a.name.localeCompare(b.name,'fr'));
+    body.innerHTML=`<div class="search">${UI.search}<input class="inp" id="q" type="search" placeholder="Chercher un cocktail" autocomplete="off"></div>
+      <button class="ghost" id="new" style="display:flex;align-items:center;justify-content:center;gap:8px">${UI.plus}<span>Nouveau cocktail</span></button>
+      <div class="list" id="cl"></div>`;
+    const draw=q=>{ const l=all.filter(c=>!q||c.name.toLowerCase().includes(q)||c.ings.some(i=>i.n.toLowerCase().includes(q)));
+      $('#cl').innerHTML=l.length?l.map(c=>{const r=calcCocktail(c);return `<button class="row" data-ck="${c.id}">${icon('cocktail')}<span class="main"><div class="t">${esc(c.name)}${c.id.startsWith('d-')?'':' <small style="color:var(--muted);font-weight:500">· perso</small>'}</div><div class="s">${esc(c.ings.map(i=>i.n).join(', '))}</div></span><span class="v num">${fmtStd(r.g)}<small>${fmtPct(r.abvServed)}</small></span></button>`}).join(''):`<div class="row"><span class="main"><div class="s">Aucun résultat. Créez-le avec « Nouveau cocktail ».</div></span></div>`;
+      $('#cl').querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>pushView(vCocktailLog(cocktailById(b.dataset.ck),presetT)));
+    };
+    $('#q').oninput=e=>draw(e.target.value.trim().toLowerCase()); draw('');
+    $('#new').onclick=()=>pushView(vBuilder(null,{presetT}));
+  }};
+}
+
+function vCocktailLog(c,presetT){
+  let serv=1;
+  return {title:c.name, render(body,foot){
+    const r=calcCocktail(c);
+    body.innerHTML=`${compHtml(c)}
+      <div class="field"><span class="lbl">Portion</span><div class="seg" id="sv"><button data-v="1" aria-pressed="true">Simple</button><button data-v="2" aria-pressed="false">Double ×2</button><button data-v="0.5" aria-pressed="false">Demi</button></div></div>
+      ${timeField(presetT||Date.now())}
+      <button class="ghost" id="ed" style="display:flex;align-items:center;justify-content:center;gap:8px">${UI.edit}<span>${c.id.startsWith('d-')?'Personnaliser la recette':'Modifier la recette'}</span></button>`;
+    foot.innerHTML=`<div class="summary"><span class="l" id="sumL"></span><span class="r num" id="sumR"></span></div><button class="primary" id="go">Ajouter ${esc(c.name)}</button>`;
+    const upd=()=>{ $('#sumL').textContent=`${Math.round(r.g*serv)} g d’alcool · ${fmtPct(r.abvServed)} dans le verre`; $('#sumR').innerHTML=`${fmtStd(r.g*serv)} <small>verre${r.g*serv/G_STD>=2?'s':''}</small>`; };
+    $('#sv').onclick=e=>{const b=e.target.closest('button'); if(!b) return; serv=+b.dataset.v; $('#sv').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); upd();};
+    $('#ed').onclick=()=>pushView(vBuilder(c,{presetT}));
+    $('#go').onclick=()=>{ addEntry(entryFromTpl({cat:'cocktail',ck:c.id,serv},readTime(Date.now()))); closeSheet(); };
+    upd();
+  }};
+}
+
+function compHtml(c){
+  const r=calcCocktail(c); const tot=r.vol||1;
+  return `<div class="facts">
+      <div class="fact"><b class="num">${fmtCl(r.vol/10).replace(' cl','')}</b><span>cl de recette</span></div>
+      <div class="fact"><b class="num">${fmt1(r.abvServed)}</b><span>% dans le verre</span></div>
+      <div class="fact"><b class="num">${Math.round(r.g)}</b><span>g d’alcool</span></div>
+      <div class="fact"><b class="num">${fmtStd(r.g)}</b><span>verres standard</span></div></div>
+    <div class="field"><span class="lbl">Recette · ${METHODS[c.method][0].toLowerCase()}, ~${Math.round(METHODS[c.method][1]*100)} % de dilution</span>
+    <div class="comp">${c.ings.map(i=>`<span style="width:${(i.cl*10)/tot*100}%;background:${ING_COLORS[i.c]||'var(--muted)'}"></span>`).join('')}</div>
+    <div class="legend">${c.ings.map(i=>`<span><i style="background:${ING_COLORS[i.c]||'var(--muted)'}"></i>${esc(i.n)} ${fmtCl(i.cl)} (${Math.round(i.cl*10/tot*100)} %)</span>`).join('')}</div></div>`;
+}
+
+function vBuilder(src,opt={}){
+  const isDefault=src&&src.id.startsWith('d-');
+  const d=src?JSON.parse(JSON.stringify(src)):{id:null,name:'',method:'shaken',ings:[]};
+  if(isDefault){ d.replaces=src.id; d.id=null; }
+  return {title:src?(isDefault?'Personnaliser':'Modifier le cocktail'):'Nouveau cocktail', render(body,foot){
+    const draw=()=>{
+      const r=calcCocktail(d); const tot=r.vol||1;
+      body.innerHTML=`
+        <div class="field"><label for="cn">Nom</label><input class="inp" id="cn" value="${esc(d.name)}" placeholder="ex. Paloma" autocomplete="off"></div>
+        <div class="field"><span class="lbl">Méthode</span><div class="seg" id="me">${Object.entries(METHODS).map(([k,[l,dl]])=>`<button data-v="${k}" aria-pressed="${d.method===k}">${l}<small>+${Math.round(dl*100)} % d’eau</small></button>`).join('')}</div></div>
+        <div class="field"><span class="lbl">Ingrédients</span>
+          ${d.ings.length?`<div class="list">${d.ings.map((i,k)=>`<div class="ing"><div class="n">${esc(i.n)}<small>${i.abv?fmtPct(i.abv):'sans alcool'} · ${Math.round(i.cl*10/tot*100)} %</small></div><div class="inp-sfx"><input class="inp num" type="number" inputmode="decimal" step="0.25" min="0" data-cl="${k}" id="cl${k}" value="${i.cl}"><span>cl</span></div><button class="icon-btn" data-rm="${k}" aria-label="Retirer ${esc(i.n)}">${UI.close}</button></div>`).join('')}</div>`:`<div class="empty">Ajoutez les spiritueux, liqueurs et softs, en cl.</div>`}
+          <button class="ghost" id="addI" style="display:flex;align-items:center;justify-content:center;gap:8px">${UI.plus}<span>Ajouter un ingrédient</span></button></div>
+        ${d.ings.length?compHtml(d):''}
+        ${src&&!isDefault?`<button class="ghost danger" id="del">Supprimer ce cocktail</button>`:''}`;
+      foot.innerHTML=`<div class="summary"><span class="l">${fmtPct(r.abvServed)} · ${Math.round(r.g)} g d’alcool</span><span class="r num">${fmtStd(r.g)} <small>verres</small></span></div><button class="primary" id="sv" ${d.name.trim()&&d.ings.length?'':'disabled'}>Enregistrer le cocktail</button>`;
+      $('#cn').oninput=e=>{d.name=e.target.value; $('#sv').disabled=!(d.name.trim()&&d.ings.length);};
+      $('#me').onclick=e=>{const b=e.target.closest('button'); if(!b) return; d.method=b.dataset.v; draw();};
+      body.querySelectorAll('[data-cl]').forEach(inp=>inp.onchange=()=>{ const v=parseFloat(inp.value); d.ings[+inp.dataset.cl].cl=isNaN(v)||v<0?0:v; draw(); });
+      body.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ d.ings.splice(+b.dataset.rm,1); draw(); });
+      $('#addI').onclick=()=>pushView(vIngPicker(ing=>{ d.ings.push(ing); }));
+      const del=$('#del'); if(del) del.onclick=()=>{ if(del.dataset.armed){ S.cocktails=S.cocktails.filter(c=>c.id!==src.id); saveCocktails(); toast('Cocktail supprimé'); closeSheet(); render(); } else { del.dataset.armed='1'; del.textContent='Touchez encore pour supprimer'; } };
+      $('#sv').onclick=()=>{
+        d.name=d.name.trim(); if(!d.id) d.id='c-'+uid();
+        const i=S.cocktails.findIndex(c=>c.id===d.id); if(i>=0) S.cocktails[i]=d; else S.cocktails.push(d);
+        saveCocktails(); toast(`${esc(d.name)} enregistré`);
+        if(opt.fromSettings){ closeSheet(); render(); return; }
+        sheet.stack=[vCategory(opt.presetT), vCocktails(opt.presetT), vCocktailLog(d,opt.presetT)]; showView(); render();
+      };
+    };
+    draw();
+  }};
+}
+
+function vIngPicker(onPick){
+  let cat='spirit';
+  return {title:'Ajouter un ingrédient', render(body){
+    body.innerHTML=`<div class="search">${UI.search}<input class="inp" id="iq" type="search" placeholder="Chercher un ingrédient" autocomplete="off"></div>
+      <div class="pick-tabs" id="pt">${ING_CATS.map(([k,l])=>`<button data-k="${k}" aria-pressed="${k===cat}">${l}</button>`).join('')}</div>
+      <div class="list" id="il"></div>
+      <div class="panel section"><span class="eyebrow">Introuvable ?</span>
+        <input class="inp" id="cname" placeholder="Nom de l’ingrédient" autocomplete="off">
+        <div class="inp-row"><div class="inp-sfx"><input class="inp num" id="cabv" type="number" inputmode="decimal" step="0.5" min="0" max="96" placeholder="Degré"><span>%</span></div><button class="ghost" id="cadd" style="flex:0 0 auto">Ajouter</button></div></div>`;
+    const choose=(n,c,abv)=>{ const def=ING_CATS.find(x=>x[0]===c); onPick({n,c,abv,cl:def?def[2]:4}); popView(); };
+    const draw=()=>{ const q=$('#iq').value.trim().toLowerCase();
+      const list=q? ING_CATS.flatMap(([k])=>INGS[k].map(x=>[...x,k])).filter(x=>x[0].toLowerCase().includes(q)) : INGS[cat].map(x=>[...x,cat]);
+      $('#pt').style.display=q?'none':'';
+      $('#il').innerHTML=list.map(([n,abv,k],i)=>`<button class="row" data-i="${i}"><span class="ico" style="--c:${ING_COLORS[k]}"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg></span><span class="main"><div class="t">${esc(n)}</div><div class="s">${ING_CATS.find(x=>x[0]===k)[1]}</div></span><span class="v num" style="font-size:15px">${fmtPct(abv)}</span></button>`).join('')||`<div class="row"><span class="main"><div class="s">Aucun résultat. Ajoutez-le ci-dessous avec son degré.</div></span></div>`;
+      $('#il').querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{ const [n,abv,k]=list[+b.dataset.i]; choose(n,k,abv); });
+    };
+    $('#pt').onclick=e=>{const b=e.target.closest('[data-k]'); if(!b) return; cat=b.dataset.k; $('#pt').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); draw();};
+    $('#iq').oninput=draw;
+    $('#cadd').onclick=()=>{ const n=$('#cname').value.trim(); const a=parseFloat(String($('#cabv').value).replace(',','.'))||0; if(!n){ $('#cname').focus(); return; } choose(n, a>=30?'spirit':a>=8?'liqueur':a>0?'wine':'mixer', a); };
+    draw();
+  }};
+}
+
+function vEntry(e){
+  return {title:entryLabel(e), render(body,foot){
+    const favTxt=()=>isFav(e)?'★ En favori':'☆ Ajouter aux favoris';
+    body.innerHTML=`<div class="list"><div class="row">${icon(e.cat)}<span class="main"><div class="t">${esc(entryLabel(e))}</div><div class="s num">${esc(entrySub(e))} · ${Math.round(e.g)} g d’alcool</div></span><span class="v num">${fmtStd(e.g)}<small>verre${e.g/G_STD>=2?'s':''}</small></span></div></div>
+      ${timeField(e.t)}
+      <div class="btn-row"><button class="ghost" id="fav">${favTxt()}</button><button class="ghost" id="again">Reprendre la même</button></div>`;
+    foot.innerHTML=`<div class="btn-row"><button class="ghost danger" id="del">Supprimer</button><button class="primary" id="save">Enregistrer l’heure</button></div>`;
+    $('#fav').onclick=()=>{ toggleFav(e); $('#fav').textContent=favTxt(); };
+    $('#again').onclick=()=>{ addEntry({...e,id:uid(),t:Date.now()}); closeSheet(); };
+    $('#del').onclick=()=>{ removeEntry(e.id); closeSheet(); };
+    $('#save').onclick=()=>{ const t=readTime(e.t); if(t!==e.t) updateEntry(e.id,{t}); closeSheet(); };
+  }};
+}
+
+/* ---------- Toast ---------- */
+let toastT;
+function toast(msg,undo){
+  const el=$('#toast'); el.innerHTML=`<span>${msg}</span>${undo?'<button id="undo">Annuler</button>':''}`; el.hidden=false;
+  if(undo) $('#undo').onclick=()=>{ undo(); el.hidden=true; };
+  clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true, undo?5000:2600);
+}
+
+/* ---------- Démarrage ---------- */
+loadLocal();
+if(!S.settings.startDate) S.settings.startDate=dkey(Date.now());
+rebuild(); render();
+try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist(); }catch(e){}
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+setInterval(()=>{ if(S.tab==='today' && $('#sheet').hidden) render(); }, 30000);
+</script>
+
+</body>
+</html>
